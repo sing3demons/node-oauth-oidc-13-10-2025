@@ -1,5 +1,4 @@
 import express, { Application } from "express";
-import bodyParser from "body-parser";
 import cors from "cors";
 import { DatabaseService } from "./services/database.service.js";
 import { CryptoService } from "./services/crypto.service.js";
@@ -46,9 +45,9 @@ export class OAuthServer {
     this.app.use(cors(config.cors));
     
     // Body parsing
-    this.app.use(bodyParser.urlencoded({ extended: false }));
-    this.app.use(bodyParser.json());
-    
+    this.app.use(express.urlencoded({ extended: false }));
+    this.app.use(express.json());
+
     // Logging & Tracing
     this.app.use(traceIdMiddleware);
     this.app.use(logMiddleware);
