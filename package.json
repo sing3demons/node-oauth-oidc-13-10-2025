@@ -1,0 +1,26 @@
+{
+  "name": "oauth-oidc-demo-esm",
+  "version": "1.0.0",
+  "main": "auth-server.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "bcrypt": "^5.1.0",
+    "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jose": "^6.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.3.4",
+    "querystring": "^0.2.1",
+    "uuid": "^13.0.0"
+  }
+}
