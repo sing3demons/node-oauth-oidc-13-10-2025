@@ -4,10 +4,6 @@ import crypto from "crypto";
 import { importPKCS8, importSPKI, exportJWK, SignJWT, jwtVerify, createRemoteJWKSet } from "jose";
 import { config } from "../config/index.js";
 
-// Polyfill for Web Crypto API
-if (!globalThis.crypto) {
-  globalThis.crypto = webcrypto as any;
-}
 
 export class CryptoService {
   private static instance: CryptoService;
