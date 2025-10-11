@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service.js";
 import { createErrorResponse } from "../utils/index.js";
-import type { TokenRequest, TokenResponse } from "../types/index.js";
+import type { TokenRequestHttp, TokenResponse } from "../types/index.js";
 
 export class TokenController {
   private authService: AuthService;
@@ -10,7 +10,7 @@ export class TokenController {
     this.authService = AuthService.getInstance();
   }
 
-  public token = async (req: Request<{}, TokenResponse | { error: string; error_description?: string }, TokenRequest>, res: Response): Promise<Response> => {
+  public token = async (req: Request<{}, TokenResponse | { error: string; error_description?: string }, TokenRequestHttp>, res: Response): Promise<Response> => {
     req.useCase = "token";
     
     const { grant_type } = req.body;

@@ -29,6 +29,8 @@
     "mongodb": "^6.3.0",
     "querystring": "^0.2.1",
     "uuid": "^13.0.0",
+    "winston": "^3.18.3",
+    "winston-daily-rotate-file": "^5.0.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {

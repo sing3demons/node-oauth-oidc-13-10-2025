@@ -60,10 +60,10 @@ export const logMiddleware = (req: Request, res: CustomResponse, next: NextFunct
         const duration = Date.now() - start;
         const outbound = {
             status: res.statusCode,
-            duration_ms: duration,
+            durationMs: duration,
             body: res.__loggedBody,
-            trace_id: req.traceId,
-            session_id: req.sessionId
+            traceId: req.traceId,
+            sessionId: req.sessionId,
         };
         const useCase = req?.useCase || "none";
 
@@ -75,8 +75,8 @@ export const logMiddleware = (req: Request, res: CustomResponse, next: NextFunct
             inbound: { ...inbound },
             outbound,
             useCase,
-            trace_id: req.traceId,
-            session_id: req.sessionId,
+            traceId: req.traceId,
+            sessionId: req.sessionId,
         };
         console.log(JSON.stringify(logObj));
     });

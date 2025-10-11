@@ -1,7 +1,18 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service.js";
-import { escapeHtml, createErrorResponse } from "../utils/index.js";
-import type { AuthorizeQuery, LoginBody } from "../types/index.js";
+import { createErrorResponse } from "../utils/index.js";
+import type { AuthorizeQueryHttp, LoginBodyHttp } from "../types/index.js";
+
+// Utility function to escape HTML
+function escapeHtml(unsafe: string | undefined): string {
+  if (!unsafe) return "";
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 export class AuthController {
   private authService: AuthService;
@@ -10,28 +21,44 @@ export class AuthController {
     this.authService = AuthService.getInstance();
   }
 
-  public authorize = async (req: Request<{}, any, any, AuthorizeQuery>, res: Response): Promise<Response | void> => {
+  public authorize = async (req: Request<{}, any, any, AuthorizeQueryHttp>, res: Response): Promise<Response | void> => {
     req.useCase = "authorize";
     
-    const { response_type, client_id, redirect_uri, scope, state, code_challenge, code_challenge_method } = req.query;
+    // Extract from HTTP query (snake_case) and convert to camelCase
+    const { 
+      response_type, 
+      client_id, 
+      redirect_uri, 
+      scope, 
+      state, 
+      code_challenge, 
+      code_challenge_method 
+    } = req.query;
+
+    // Convert to camelCase for internal use
+    const responseType = response_type as string;
+    const clientId = client_id as string;
+    const redirectUri = redirect_uri as string;
+    const codeChallenge = code_challenge as string;
+    const codeChallengeMethod = code_challenge_method as string;
 
     // Validate required parameters
-    if (!client_id || !redirect_uri) {
+    if (!clientId || !redirectUri) {
       return res.status(400).json(createErrorResponse("invalid_request", "Missing required parameters"));
     }
 
     // Validate response type
-    if (response_type !== "code") {
+    if (responseType !== "code") {
       return res.status(400).json(createErrorResponse("unsupported_response_type"));
     }
 
     // Validate PKCE
-    if (!code_challenge || code_challenge_method !== "S256") {
+    if (!codeChallenge || codeChallengeMethod !== "S256") {
       return res.status(400).json(createErrorResponse("invalid_request", "PKCE required (S256)"));
     }
 
     // Validate client
-    const isValidClient = await this.authService.validateClient(client_id, redirect_uri);
+    const isValidClient = await this.authService.validateClient(clientId, redirectUri);
     if (!isValidClient) {
       return res.status(400).json(createErrorResponse("invalid_client"));
     }
@@ -80,7 +107,7 @@ export class AuthController {
     `);
   };
 
-  public login = async (req: Request<{}, any, LoginBody>, res: Response): Promise<Response | void> => {
+  public login = async (req: Request<{}, any, LoginBodyHttp>, res: Response): Promise<Response | void> => {
     req.useCase = "login";
     
     const { username, password, client_id, redirect_uri, scope, state, code_challenge } = req.body;

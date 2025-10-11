@@ -55,12 +55,12 @@ export class AuthService {
 
   // Client Management
   public async getClientById(clientId: string): Promise<Client | null> {
-    return ClientModel.findOne({ client_id: clientId });
+    return ClientModel.findOne({ clientId: clientId });
   }
 
   public async validateClient(clientId: string, redirectUri: string): Promise<boolean> {
     const client = await this.getClientById(clientId);
-    return client?.redirect_uris.includes(redirectUri) ?? false;
+    return client?.redirectUris?.includes(redirectUri) ?? false;
   }
 
   // Authorization Code Flow
@@ -70,12 +70,12 @@ export class AuthService {
     await AuthCodeModel.create({
       code,
       used: false,
-      client_id: data.clientId,
-      user_id: data.userId,
-      redirect_uri: data.redirectUri,
+      clientId: data.clientId,
+      userId: new ObjectId(data.userId),
+      redirectUri: data.redirectUri,
       scope: data.scope,
-      code_challenge: data.codeChallenge,
-      expires_at: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
+      codeChallenge: data.codeChallenge,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000) // 5 minutes
     });
 
     return code;
@@ -85,21 +85,21 @@ export class AuthService {
     const authCode = await AuthCodeModel.findOne({ code });
     
     if (!authCode) return null;
-    if (authCode.expires_at < new Date()) {
+    if (authCode.expiresAt < new Date()) {
       await AuthCodeModel.deleteOne({ code });
       return null;
     }
-    if (authCode.client_id !== clientId || authCode.redirect_uri !== redirectUri) {
+    if (authCode.clientId !== clientId || authCode.redirectUri !== redirectUri) {
       return null;
     }
 
     return {
       code: authCode.code,
-      clientId: authCode.client_id,
-      userId: authCode.user_id,
-      redirectUri: authCode.redirect_uri,
+      clientId: authCode.clientId,
+      userId: authCode.userId.toString(),
+      redirectUri: authCode.redirectUri,
       scope: authCode.scope,
-      codeChallenge: authCode.code_challenge
+      codeChallenge: authCode.codeChallenge || ''
     };
   }
 
@@ -126,10 +126,11 @@ export class AuthService {
 
     // Store refresh token
     await RefreshTokenModel.create({
-      user_id: user._id?.toString() || user._id as any,
-      client_id: clientId,
+      userId: user._id || new ObjectId(),
+      clientId: clientId,
       token: refreshToken,
-      expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000), // 7 days
+      accessToken: accessToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000), // 7 days
       revoked: false
     });
 
@@ -159,18 +160,18 @@ export class AuthService {
   public async refreshTokens(refreshToken: string): Promise<TokenPair | null> {
     const tokenDoc = await RefreshTokenModel.findOne({ token: refreshToken });
     
-    if (!tokenDoc || tokenDoc.expires_at < new Date() || tokenDoc.revoked) {
+    if (!tokenDoc || tokenDoc.expiresAt < new Date() || tokenDoc.revoked) {
       return null;
     }
 
-    const user = await this.getUserById(tokenDoc.user_id);
+    const user = await this.getUserById(tokenDoc.userId.toString());
     if (!user) return null;
 
     // Revoke old refresh token
     await RefreshTokenModel.deleteOne({ token: refreshToken });
 
     // Issue new tokens
-    return this.issueTokens(user, tokenDoc.client_id);
+    return this.issueTokens(user, tokenDoc.clientId);
   }
 
   public async revokeToken(token: string): Promise<boolean> {

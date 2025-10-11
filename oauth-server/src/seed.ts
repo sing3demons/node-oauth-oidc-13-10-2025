@@ -24,9 +24,14 @@ async function seedDatabase() {
 
         // Create demo client
         await ClientModel.create({
-            client_id: "spa-client",
-            redirect_uris: ["http://localhost:3000/callback"],
-            type: "public"
+            clientId: "spa-client",
+            name: "SPA Client Demo",
+            redirectUris: ["http://localhost:3000/callback"],
+            grantTypes: ["authorization_code", "refresh_token"],
+            responseTypes: ["code"],
+            scopes: ["openid", "profile", "email"],
+            type: "public",
+            active: true
         });
 
         console.log("✅ Database seeded successfully!");
