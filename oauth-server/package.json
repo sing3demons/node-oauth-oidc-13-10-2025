@@ -1,15 +1,16 @@
 {
   "name": "oauth-oidc-demo-esm",
   "version": "1.0.0",
-  "main": "dist/index.js",
+  "main": "dist/main.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "start": "node dist/index.js",
+    "dev": "tsx src/main.ts",
+    "start": "node dist/main.js",
     "seed": "tsx src/seed.ts",
     "migrate": "node migrate.mjs",
+    "dev:legacy": "tsx src/index.ts",
     "build:oauth": "tsc -p oauth-server/tsconfig.json",
     "dev:oauth": "tsx oauth-server/src/index.ts",
     "start:oauth": "node oauth-server/dist/index.js"

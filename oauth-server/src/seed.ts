@@ -1,12 +1,12 @@
-import mongoose from "mongoose";
-import bcrypt from "bcrypt";
+import { DatabaseService } from "./services/database.service.js";
 import { UserModel, ClientModel } from "./models/index.js";
+import bcrypt from "bcrypt";
 
-const MONGO = process.env.MONGO ?? "mongodb://localhost:27017/oauth_demo";
+const databaseService = DatabaseService.getInstance();
 
 async function seedDatabase() {
     try {
-        await mongoose.connect(MONGO);
+        await databaseService.connect();
         console.log("Connected to database");
 
         // Clear existing data
