@@ -1,0 +1,54 @@
+{
+  "name": "oauth-oidc-demo-esm",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "seed": "tsx src/seed.ts",
+    "migrate": "node migrate.mjs",
+    "build:oauth": "tsc -p oauth-server/tsconfig.json",
+    "dev:oauth": "tsx oauth-server/src/index.ts",
+    "start:oauth": "node oauth-server/dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "bcrypt": "^6.0.0",
+    "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jose": "^6.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.3.4",
+    "querystring": "^0.2.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.0",
+    "@types/body-parser": "^1.19.2",
+    "@types/cookie-parser": "^1.4.3",
+    "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.17",
+    "@types/jsonwebtoken": "^9.0.3",
+    "@types/node": "^20.4.2",
+    "@types/uuid": "^9.0.2",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.4.2"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "bcrypt",
+      "esbuild"
+    ]
+  }
+}

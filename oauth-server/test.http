@@ -1,0 +1,19 @@
+@uri=http://localhost:4000
+
+GET {{uri}}/.well-known/openid-configuration HTTP/1.1
+
+### http://localhost:4000/authorize?response_type=code&client_id=spa-client&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback&scope=openid%20profile%20email&state=4c9ba5c1f90dd51b&code_challenge=lUAhoiF84pItLo2jxupwOpg0wEfS7Zdi83eY7oUV0eg&code_challenge_method=S256
+GET {{uri}}/authorize?response_type=code&client_id=spa-client&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback&scope=openid%20profile%20email&state=4c9ba5c1f90dd51b&code_challenge=lUAhoiF84pItLo2jxupwOpg0wEfS7Zdi83eY7oUV0eg&code_challenge_method=S256 HTTP/1.1
+
+### Login as user 'alice' with password 'password'
+POST {{uri}}/login HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+
+
+username=alice&password=password&client_id=spa-client&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback&state=4c9ba5c1f90dd51b&scope=openid+profile+email&code_challenge=lUAhoiF84pItLo2jxupwOpg0wEfS7Zdi83eY7oUV0eg&code_challenge_method=S256
+
+### Exchange authorization code for tokens
+POST {{uri}}/token HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+Accept: application/json
+grant_type=authorization_code&code=fa622f85-9766-472b-a52a-32d7d8bcf4f0&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fcallback&client_id=

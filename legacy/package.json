@@ -4,7 +4,10 @@
   "main": "auth-server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:oauth": "tsc -p oauth-server/tsconfig.json",
+    "dev:oauth": "ts-node-esm oauth-server/src/index.ts",
+    "start:oauth": "node oauth-server/dist/index.js"
   },
   "keywords": [],
   "author": "",
@@ -22,5 +25,15 @@
     "mongoose": "^7.3.4",
     "querystring": "^0.2.1",
     "uuid": "^13.0.0"
+  }
+  ,
+  "devDependencies": {
+    "typescript": "^5.4.2",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "@types/express": "^4.17.17",
+    "@types/node": "^20.4.2",
+    "@types/body-parser": "^1.19.2",
+    "@types/uuid": "^9.0.2"
   }
 }
