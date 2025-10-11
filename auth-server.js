@@ -2,8 +2,9 @@
 import express from "express";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
-import bcrypt from "bcrypt";
-import { generateKeyPair, exportJWK, SignJWT } from "jose";
+import bcrypt from "bcryptjs";
+import { createRemoteJWKSet, exportJWK, jwtVerify, importPKCS8, importSPKI, SignJWT, } from "jose";
+import { logMiddleware, traceIdMiddleware } from "./logMiddleware.js";
 import { v4 as uuidv4 } from "uuid";
 import crypto from "crypto";
 import fs from "fs";
@@ -40,13 +41,23 @@ const RefreshToken = mongoose.model("RefreshToken", new mongoose.Schema({
     token: String, user_id: String, client_id: String, expires_at: Date, revoked: { type: Boolean, default: false }
 }));
 
-// Generate RSA keypair once (demo). In prod keep privateKey in KMS/HSM.
-const { publicKey, privateKey } = await generateKeyPair("RS256");
+// ===== Keypair Setup =====
+const KID = "demo-key";
+const privatePem = fs.readFileSync("./keys/private.pem", "utf8");
+const publicPem = fs.readFileSync("./keys/public.pem", "utf8");
+
+const privateKey = await importPKCS8(privatePem, "RS256");
+const publicKey = await importSPKI(publicPem, "RS256");
+
+
 const publicJwk = await exportJWK(publicKey);
-const KID = `kid-${Date.now()}`;
-publicJwk.kid = KID; publicJwk.use = "sig"; publicJwk.alg = "RS256";
+publicJwk.kid = KID;
+publicJwk.use = "sig";
+publicJwk.alg = "RS256";
+
 
 const app = express();
+// app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 // traceId middleware
@@ -57,6 +68,57 @@ const ISSUER = "http://localhost:4000";
 
 function esc(s) { return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"); }
 const toBase64Url = buf => Buffer.from(buf).toString("base64").replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+
+// helper: issue access_token + refresh_token
+async function issueTokens(user, client_id, scope = "openid profile") {
+    const accessToken = await new SignJWT({ sub: user.username, scope })
+        .setProtectedHeader({ alg: "RS256", kid: KID })
+        .setIssuedAt()
+        .setIssuer("http://localhost:4000")
+        .setAudience("http://localhost:5000")
+        .setExpirationTime("15m")
+        .sign(privateKey);
+
+
+    const refreshToken = await new SignJWT({ sub: user.username, type: "refresh" })
+        .setProtectedHeader({ alg: "RS256", kid: KID })
+        .setIssuedAt()
+        .setIssuer("http://localhost:4000")
+        .setExpirationTime("7d")
+        .sign(privateKey);
+
+    await RefreshToken.create({
+        userId: user._id,
+        clientId: client_id,
+        token: refreshToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+    });
+
+    return { accessToken, refreshToken };
+}
+
+// issue id_token
+
+ async function issueIdToken(user, client_id) {
+  const now = Math.floor(Date.now() / 1000);
+
+  // ✅ แปลง PEM string → CryptoKey
+  const privateKey = await importPKCS8(privatePem, "RS256");
+
+  return await new SignJWT({
+    iss: "http://localhost:4000",
+    aud: client_id,
+    sub: String(user._id),
+    name: user.name,
+    email: user.email,
+    iat: now,
+    exp: now + 3600,
+  })
+    .setProtectedHeader({ alg: "RS256", kid: KID })
+    // ✅ ใช้ privateKey ที่ import แล้ว
+    .sign(privateKey);
+}
 
 // Discovery & JWKS
 app.get("/.well-known/openid-configuration", (req, res) => {
@@ -144,49 +206,47 @@ app.post("/token", async (req, res) => {
         const user = await User.findById(auth.user_id);
 
         // create access_token (RS256)
-        const now = Math.floor(Date.now() / 1000);
-        const accessPayload = { sub: String(user._id), scope: auth.scope || "", iss: ISSUER, aud: client_id, iat: now };
-        const accessToken = await new SignJWT(accessPayload).setProtectedHeader({ alg: "RS256", kid: KID }).setExpirationTime("1h").sign(privateKey);
-
-        // create id_token
-        const idPayload = { iss: ISSUER, aud: client_id, sub: String(user._id), name: user.name, email: user.email, iat: now, exp: now + 3600 };
-        const idToken = await new SignJWT(idPayload).setProtectedHeader({ alg: "RS256", kid: KID }).sign(privateKey);
-
-        // refresh token (rotate-safe): store plaintext in demo (hash in prod)
-        const rt = uuidv4();
-        await RefreshToken.create({ token: rt, user_id: String(user._id), client_id, expires_at: new Date(Date.now() + 30 * 24 * 3600 * 1000) });
+        const { accessToken, refreshToken } = await issueTokens(user, client_id);
+        const idToken = await issueIdToken(user, client_id);
 
         await AuthCode.deleteOne({ code });
-        return res.json({ access_token: accessToken, id_token: idToken, refresh_token: rt, token_type: "Bearer", expires_in: 3600 });
+        return res.json({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            id_token: idToken,
+            token_type: "Bearer",
+            expires_in: 3600,
+        });
     }
 
+    // === REFRESH TOKEN FLOW ===
     if (grant_type === "refresh_token") {
-        const { refresh_token, client_id } = req.body;
-        if (!refresh_token) return res.status(400).json({ error: "invalid_request" });
+        const tokenDoc = await RefreshToken.findOne({ token: refresh_token });
+        if (!tokenDoc || tokenDoc.expiresAt < new Date()) {
+            return res.status(400).json({ error: "invalid_refresh_token" });
+        }
 
-        const doc = await RefreshToken.findOne({ token: refresh_token });
-        if (!doc || doc.revoked || doc.expires_at < new Date()) return res.status(400).json({ error: "invalid_grant" });
-        if (doc.client_id !== client_id) return res.status(400).json({ error: "invalid_client" });
+        const user = await User.findById(tokenDoc.userId);
+        const { accessToken, refreshTokenValue } = await issueTokens(user, tokenDoc.clientId);
+        const idToken = await issueIdToken(user, tokenDoc.clientId);
 
-        // rotate refresh token (invalidate old)
-        doc.revoked = true; await doc.save();
-        const newRt = uuidv4();
-        await RefreshToken.create({ token: newRt, user_id: doc.user_id, client_id: doc.client_id, expires_at: new Date(Date.now() + 30 * 24 * 3600 * 1000) });
+        // optionally revoke old refresh token
+        await RefreshToken.deleteOne({ token: refresh_token });
 
-        const user = await User.findById(doc.user_id);
-        const now = Math.floor(Date.now() / 1000);
-        const accessPayload = { sub: String(user._id), scope: "openid profile email", iss: ISSUER, aud: client_id, iat: now };
-        const accessToken = await new SignJWT(accessPayload).setProtectedHeader({ alg: "RS256", kid: KID }).setExpirationTime("1h").sign(privateKey);
-
-        return res.json({ access_token: accessToken, refresh_token: newRt, token_type: "Bearer", expires_in: 3600 });
+        return res.json({
+            access_token: accessToken,
+            refresh_token: refreshTokenValue,
+            id_token: idToken,
+            token_type: "Bearer",
+            expires_in: 3600,
+        });
     }
+
+
 
     return res.status(400).json({ error: "unsupported_grant_type" });
 });
 
-// /userinfo
-import { jwtVerify, createRemoteJWKSet } from "jose";
-import { logMiddleware, traceIdMiddleware } from "./logMiddleware.js";
 const JWKS = createRemoteJWKSet(new URL(`${ISSUER}/.well-known/jwks.json`));
 async function verifyAccessToken(token, expectedAud) {
     const { payload } = await jwtVerify(token, JWKS, { issuer: ISSUER, audience: expectedAud });
@@ -209,9 +269,8 @@ app.get("/userinfo", async (req, res) => {
 app.post("/revoke", async (req, res) => {
     req.useCase = "revoke";
     const { token } = req.body;
-    if (!token) return res.status(400).json({ error: "invalid_request" });
-    await RefreshToken.deleteOne({ token });
-    return res.status(200).send();
+    const deleted = await RefreshToken.deleteOne({ token });
+    res.json({ revoked: deleted.deletedCount > 0 });
 });
 
 app.listen(4000, () => console.log("✅ Auth Server running http://localhost:4000"));
