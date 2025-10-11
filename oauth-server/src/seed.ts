@@ -15,21 +15,19 @@ async function seedDatabase() {
 
         // Create demo user
         const hashedPassword = await bcrypt.hash("password", 10);
-        const demoUser = new UserModel({
+        await UserModel.create({
             username: "alice",
             password: hashedPassword,
             name: "Alice Demo",
             email: "alice@example.com"
         });
-        await demoUser.save();
 
         // Create demo client
-        const demoClient = new ClientModel({
+        await ClientModel.create({
             client_id: "spa-client",
             redirect_uris: ["http://localhost:3000/callback"],
             type: "public"
         });
-        await demoClient.save();
 
         console.log("✅ Database seeded successfully!");
         console.log("Demo user: alice / password");

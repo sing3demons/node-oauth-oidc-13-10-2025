@@ -1,4 +1,5 @@
 import { Request } from 'express';
+import { ObjectId } from 'mongodb';
 
 declare global {
   namespace Express {
@@ -11,22 +12,25 @@ declare global {
 }
 
 export interface User {
-  _id: string;
+  _id?: ObjectId;
   username: string;
   password: string;
   name: string;
   email: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface Client {
-  _id: string;
+  _id?: ObjectId;
   client_id: string;
   redirect_uris: string[];
   type: string;
+  createdAt?: Date;
 }
 
 export interface AuthCode {
-  _id: string;
+  _id?: ObjectId;
   code: string;
   used: boolean;
   client_id: string;
@@ -35,15 +39,17 @@ export interface AuthCode {
   scope: string;
   code_challenge: string;
   expires_at: Date;
+  createdAt?: Date;
 }
 
 export interface RefreshToken {
-  _id: string;
+  _id?: ObjectId;
   token: string;
   user_id: string;
   client_id: string;
   expires_at: Date;
   revoked: boolean;
+  createdAt?: Date;
 }
 
 export interface AuthorizeQuery {

@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import { ObjectId } from "mongodb";
 import { v4 as uuidv4 } from "uuid";
 import { UserModel, ClientModel, AuthCodeModel, RefreshTokenModel } from "../models/index.js";
 import { CryptoService } from "./crypto.service.js";
@@ -37,7 +38,7 @@ export class AuthService {
 
   // User Authentication
   public async authenticateUser(username: string, password: string): Promise<User | null> {
-    const user = await UserModel.findOne({ username }).lean();
+    const user = await UserModel.findOne({ username });
     if (!user) return null;
 
     const isValid = await bcrypt.compare(password, user.password);
@@ -45,16 +46,16 @@ export class AuthService {
   }
 
   public async getUserById(userId: string): Promise<User | null> {
-    return UserModel.findById(userId).lean();
+    return UserModel.findById(userId);
   }
 
   public async getUserByUsername(username: string): Promise<User | null> {
-    return UserModel.findOne({ username }).lean();
+    return UserModel.findOne({ username });
   }
 
   // Client Management
   public async getClientById(clientId: string): Promise<Client | null> {
-    return ClientModel.findOne({ client_id: clientId }).lean();
+    return ClientModel.findOne({ client_id: clientId });
   }
 
   public async validateClient(clientId: string, redirectUri: string): Promise<boolean> {
@@ -68,6 +69,7 @@ export class AuthService {
     
     await AuthCodeModel.create({
       code,
+      used: false,
       client_id: data.clientId,
       user_id: data.userId,
       redirect_uri: data.redirectUri,
@@ -80,7 +82,7 @@ export class AuthService {
   }
 
   public async validateAuthCode(code: string, clientId: string, redirectUri: string): Promise<AuthCodeData | null> {
-    const authCode = await AuthCodeModel.findOne({ code }).lean();
+    const authCode = await AuthCodeModel.findOne({ code });
     
     if (!authCode) return null;
     if (authCode.expires_at < new Date()) {
@@ -124,10 +126,11 @@ export class AuthService {
 
     // Store refresh token
     await RefreshTokenModel.create({
-      user_id: user._id,
+      user_id: user._id?.toString() || user._id as any,
       client_id: clientId,
       token: refreshToken,
       expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000), // 7 days
+      revoked: false
     });
 
     const idToken = await this.issueIdToken(user, clientId);
@@ -154,7 +157,7 @@ export class AuthService {
   }
 
   public async refreshTokens(refreshToken: string): Promise<TokenPair | null> {
-    const tokenDoc = await RefreshTokenModel.findOne({ token: refreshToken }).lean();
+    const tokenDoc = await RefreshTokenModel.findOne({ token: refreshToken });
     
     if (!tokenDoc || tokenDoc.expires_at < new Date() || tokenDoc.revoked) {
       return null;
@@ -172,7 +175,7 @@ export class AuthService {
 
   public async revokeToken(token: string): Promise<boolean> {
     const result = await RefreshTokenModel.deleteOne({ token });
-    return result.deletedCount > 0;
+    return result;
   }
 
   // PKCE Validation
