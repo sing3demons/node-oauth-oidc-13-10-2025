@@ -1,10 +1,13 @@
 import { DetailLogger } from './DetailLogger.js';
+import type { Request } from 'express';
+import { v7 as uuidv7 } from 'uuid';
 import { SummaryLogger } from './SummaryLogger.js';
 import {
   LoggerContext,
   ILoggerActionData,
   MaskingOptionDto,
   LoggerConfig,
+  LoggerAction,
 } from './types.js';
 
 /**
@@ -18,13 +21,17 @@ export interface ILogger {
   debug(actionData: ILoggerActionData, data?: any, maskingOptions?: MaskingOptionDto[]): this;
 
   // SummaryLogger methods
-  start(): this;
+  init(cmd: string): this;
   success(appResultCode: string, appResult?: string, metadata?: Record<string, any>): this;
   flush(appResultCode: string, appResult?: string, statusCode?: number, metadata?: Record<string, any>): this;
 
+  update(key: string, value: any): this
+  addSummaryMetadata(key: string, value: any): this
+  end(statusCode?: number): void
+  getOutboundMaskingOptions(): MaskingOptionDto[]
   // Context management
-  withContext(context: LoggerContext): ILogger;
-  addContext(context: Partial<LoggerContext>): this;
+  // withContext(context: LoggerContext): ILogger;
+  // addContext(context: Partial<LoggerContext>): this;
   clearContext(): this;
 }
 
@@ -39,13 +46,26 @@ export interface ILogger {
  * ```
  */
 export class Logger implements ILogger {
-  private detail: DetailLogger;
-  private summary: SummaryLogger;
+  private detail: DetailLogger = DetailLogger.getInstance();
+  private summary: SummaryLogger = SummaryLogger.getInstance();
 
-  constructor(moduleName: string, additionalContext?: LoggerContext) {
-    const context = { module: moduleName, ...additionalContext };
-    this.detail = DetailLogger.getInstance().withContext(context);
-    this.summary = SummaryLogger.getInstance().withContext(context);
+  private readonly context: LoggerContext = {};
+  private readonly inbound: Record<string, unknown> = {};
+
+  constructor(additionalContext: LoggerContext, req?: Request) {
+    if (req) {
+      this.inbound = {
+        method: req.method,
+        url: req.url,
+        headers: req?.headers || {},
+        query: req?.query || {},
+        body: req?.body || {},
+        params: req?.params || {},
+      }
+    }
+    additionalContext.requestId = uuidv7();
+    const context = { ...additionalContext };
+    this.context = context;
   }
 
   /**
@@ -101,6 +121,9 @@ export class Logger implements ILogger {
     this.detail.debug(actionData, data, maskingOptions);
     return this;
   }
+  end(statusCode?: number) {
+    this.summary.flush(statusCode || 200);
+  }
 
   // ============================================
   // SummaryLogger methods
@@ -109,8 +132,48 @@ export class Logger implements ILogger {
   /**
    * Start timing (SummaryLogger)
    */
-  start(): this {
+  private readonly outboundMaskingOptions: MaskingOptionDto[] = [];
+  public getOutboundMaskingOptions(): MaskingOptionDto[] {
+    return this.outboundMaskingOptions;
+  }
+  init(cmd: string, inboundMaskingOptions?: MaskingOptionDto[], outboundMaskingOptions?: MaskingOptionDto[]): this {
+    this.context.module = cmd;
+    this.detail = DetailLogger.getInstance().withContext(this.context);
+    this.summary = SummaryLogger.getInstance().withContext(this.context);
     this.summary.start();
+
+    this.detail.info(LoggerAction.INBOUND(`Start ${cmd}`), this.inbound, inboundMaskingOptions);
+    if (outboundMaskingOptions) {
+      this.outboundMaskingOptions.push(...outboundMaskingOptions);
+    }
+    // clear inbound after logging
+    Object.keys(this.inbound).forEach(key => delete this.inbound[key]);
+    return this;
+  }
+
+  public update(key: string, value: any): this {
+    this.detail = this.detail.addContext({ [key]: value });
+    this.summary = this.summary.addContext({ [key]: value });
+    return this;
+  }
+
+  private summaryMetadata = new Map<string, any>();
+  public addSummaryMetadata(key: string, value: any): this {
+    // check if key exists, if so, merge
+    if (this.summaryMetadata.has(key)) {
+      const existing = this.summaryMetadata.get(key);
+      if (typeof existing === 'object' && typeof value === 'object') {
+        // array
+        if (Array.isArray(existing) && Array.isArray(value)) {
+          this.summaryMetadata.set(key, [...existing, ...value]);
+          return this;
+        }
+        // object
+        this.summaryMetadata.set(key, { ...existing, ...value });
+        return this;
+      }
+      this.summaryMetadata.set(key, value);
+    }
     return this;
   }
 
@@ -122,7 +185,13 @@ export class Logger implements ILogger {
     appResult?: string,
     metadata?: Record<string, any>
   ): this {
-    this.summary.success(appResultCode, appResult, metadata);
+    if (this.summaryMetadata.size > 0) {
+      this.summary.addContext({
+        ...Object.fromEntries(this.summaryMetadata),
+      })
+    }
+    // this.summary.success(appResultCode, appResult, metadata);
+    this.summaryMetadata.clear();
     return this;
   }
 
@@ -135,7 +204,26 @@ export class Logger implements ILogger {
     statusCode?: number,
     metadata?: Record<string, any>
   ): this {
-    this.summary.flush(appResultCode, appResult, statusCode, metadata);
+    // merge metadata with summaryMetadata
+    if (this.summaryMetadata.size > 0) {
+      this.summary.addContext({
+        ...Object.fromEntries(this.summaryMetadata),
+      })
+    }
+    if (appResultCode) {
+      this.summary.update('appResultCode', appResultCode);
+    }
+    if (appResult) {
+      this.summary.update('appResult', appResult);
+    }
+    if (statusCode) {
+      this.summary.update('statusCode', statusCode);
+    }
+    if (metadata) {
+      this.summary.update('metadata', metadata);
+    }
+    // this.summary.flush(appResultCode, appResult, statusCode, metadata);
+    this.summaryMetadata.clear();
     return this;
   }
 
@@ -143,15 +231,7 @@ export class Logger implements ILogger {
   // Context management
   // ============================================
 
-  /**
-   * Create a new logger with additional context
-   */
-  withContext(context: LoggerContext): ILogger {
-    const newLogger = new Logger('');
-    newLogger.detail = this.detail.withContext(context);
-    newLogger.summary = this.summary.withContext(context);
-    return newLogger;
-  }
+
 
   /**
    * Add context to current logger

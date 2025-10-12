@@ -1,41 +1,26 @@
 import { Request, Response, NextFunction } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { LogObject } from "./types/index.js";
+import { Logger } from "./logger/Logger.js";
+import { LoggerAction } from "./logger/types.js";
 
 interface CustomResponse extends Response {
-  __loggedBody?: any;
+    __loggedBody?: any;
 }
 
 export const logMiddleware = (req: Request, res: CustomResponse, next: NextFunction): void => {
     const start = Date.now();
-    
+    let finished = false; // Flag to prevent duplicate finish events
+
     // Extract session id from cookie or header
     const sessionFromHeader = req.headers["x-session-id"] as string | undefined;
     req.sessionId = sessionFromHeader || uuidv4();
-    
-    // Capture some inbound data
-    const inbound = {
-        method: req.method,
-        path: req.originalUrl,
-        query: req.query,
-        body: {},
-        // Don't log full headers; indicate presence and partially mask auth
-        headers: {
-            authorization: req.headers.authorization ? "present" : "absent",
-            host: req.headers.host,
-            "user-agent": req.headers["user-agent"]
-        }
-    };
 
-    // Attach truncated body if present (safe size)
-    if (req.body && Object.keys(req.body).length) {
-        try {
-            const json = JSON.stringify(req.body);
-            inbound.body = json.length > 1024 ? json.slice(0, 1024) + "..." : JSON.parse(json);
-        } catch (e) {
-            inbound.body = {};
-        }
-    }
+    req.logger = new Logger({
+        service: process.env.SERVICE_NAME || "oauth-server",
+        version: process.env.SERVICE_VERSION || "1.0.0",
+        sessionId: req.sessionId,
+        traceId: req?.traceId || "none",
+    }, req)
 
     // Wrap res.send to capture body
     const _send = res.send.bind(res);
@@ -56,30 +41,31 @@ export const logMiddleware = (req: Request, res: CustomResponse, next: NextFunct
         return _send(body);
     };
 
-    res.on("finish", () => {
-        const duration = Date.now() - start;
+    const handleFinish = () => {
+        if (finished) return; // Prevent duplicate execution
+        finished = true;
+
         const outbound = {
             status: res.statusCode,
-            durationMs: duration,
+            headers: res.getHeaders(),
             body: res.__loggedBody,
-            traceId: req.traceId,
-            sessionId: req.sessionId,
         };
-        const useCase = req?.useCase || "none";
 
-        const logObj: LogObject = {
-            timestamp: new Date().toISOString(),
-            // Get service name from package.json
-            service: process.env.SERVICE_NAME || "unknown",
-            version: process.env.SERVICE_VERSION || "unknown",
-            inbound: { ...inbound },
-            outbound,
-            useCase,
-            traceId: req.traceId,
-            sessionId: req.sessionId,
-        };
-        console.log(JSON.stringify(logObj));
-    });
+        if (req.logger) {
+            try {
+                req.logger?.info(LoggerAction.OUTBOUND("Response sent"), outbound, req.logger.getOutboundMaskingOptions());
+                req.logger?.end(res.statusCode);
+            } catch (error) {
+                console.error("Logger error:", error);
+            } finally {
+                req.logger = undefined as any;
+            }
+        }
+    };
+
+    // Listen to both finish and close events to ensure logging
+    res.once("finish", handleFinish);
+    res.once("close", handleFinish);
 
     next();
 };

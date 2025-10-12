@@ -1,10 +1,12 @@
 import bcrypt from "bcrypt";
 import { ObjectId } from "mongodb";
 import { v4 as uuidv4 } from "uuid";
+import type { Request } from "express";
 import { UserModel, ClientModel, AuthCodeModel, RefreshTokenModel } from "../models/index.js";
 import { CryptoService } from "./crypto.service.js";
 import { config } from "../config/index.js";
 import type { User, Client } from "../types/index.js";
+import { LoggerAction, SubActionEnum } from "../logger/types.js";
 
 export interface TokenPair {
   accessToken: string;
@@ -53,20 +55,39 @@ export class AuthService {
     return UserModel.findOne({ username });
   }
 
+  // private getCommandLog(method: string, searchItem: Record<string, any> = {}): string {
+  //   const rawData = `${this.collectionName}.${method}(${JSON.stringify(
+  //     searchItem
+  //   ).replace(/"/g, "'")})`;
+  //   return rawData;
+  // }
+
   // Client Management
-  public async getClientById(clientId: string): Promise<Client | null> {
-    return ClientModel.findOne({ clientId: clientId });
+  public async getClientById(ctx: Request, clientId: string): Promise<Client | null> {
+    const start = Date.now();
+    const rawData = `clients.findOne({ clientId: '${clientId}' })`;
+    ctx.logger.info(LoggerAction.DB_REQUEST(`mongo findOne clients`, SubActionEnum.READ), rawData);
+
+    try {
+      const result = await ClientModel.findOne({ clientId: clientId });
+      ctx.logger.info(LoggerAction.DB_RESPONSE(`mongo findOne clients`, SubActionEnum.READ), { result, duration: Date.now() - start });
+      return result;
+      
+    } catch (error) {
+      ctx.logger.error(LoggerAction.DB_RESPONSE(`mongo findOne clients`, SubActionEnum.READ), { error, duration: Date.now() - start });
+    }
+    return null;
   }
 
-  public async validateClient(clientId: string, redirectUri: string): Promise<boolean> {
-    const client = await this.getClientById(clientId);
+  public async validateClient(ctx: Request, clientId: string, redirectUri: string): Promise<boolean> {
+    const client = await this.getClientById(ctx, clientId);
     return client?.redirectUris?.includes(redirectUri) ?? false;
   }
 
   // Authorization Code Flow
   public async createAuthCode(data: Omit<AuthCodeData, 'code'>): Promise<string> {
     const code = uuidv4();
-    
+
     await AuthCodeModel.create({
       code,
       used: false,
@@ -83,7 +104,7 @@ export class AuthService {
 
   public async validateAuthCode(code: string, clientId: string, redirectUri: string): Promise<AuthCodeData | null> {
     const authCode = await AuthCodeModel.findOne({ code });
-    
+
     if (!authCode) return null;
     if (authCode.expiresAt < new Date()) {
       await AuthCodeModel.deleteOne({ code });
@@ -159,7 +180,7 @@ export class AuthService {
 
   public async refreshTokens(refreshToken: string): Promise<TokenPair | null> {
     const tokenDoc = await RefreshTokenModel.findOne({ token: refreshToken });
-    
+
     if (!tokenDoc || tokenDoc.expiresAt < new Date() || tokenDoc.revoked) {
       return null;
     }

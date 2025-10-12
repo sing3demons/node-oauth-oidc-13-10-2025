@@ -1,7 +1,9 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { AuthService } from "../services/auth.service.js";
 import { createErrorResponse } from "../utils/index.js";
 import type { AuthorizeQueryHttp, LoginBodyHttp } from "../types/index.js";
+import { validate } from "../utils/validation.js";
+import z, { ZodAny } from "zod";
 
 // Utility function to escape HTML
 function escapeHtml(unsafe: string | undefined): string {
@@ -14,6 +16,16 @@ function escapeHtml(unsafe: string | undefined): string {
     .replace(/'/g, "&#039;");
 }
 
+const schemaAuthorize = z.object({
+  response_type: z.string().min(2).max(100),
+  client_id: z.string().min(2).max(100),
+  redirect_uri: z.string(),
+  scope: z.string().optional(),
+  state: z.string().optional(),
+  code_challenge: z.string().min(43).max(128).optional(),
+  code_challenge_method: z.enum(["S256", "plain"]).optional()
+});
+
 export class AuthController {
   private authService: AuthService;
 
@@ -21,31 +33,22 @@ export class AuthController {
     this.authService = AuthService.getInstance();
   }
 
-  public authorize = async (req: Request<{}, any, any, AuthorizeQueryHttp>, res: Response): Promise<Response | void> => {
-    req.useCase = "authorize";
-    
+  public authorize = async (req: Request, res: Response): Promise<Response | void> => {
+    req.logger.init("authorize");
+
     // Extract from HTTP query (snake_case) and convert to camelCase
-    const { 
-      response_type, 
-      client_id, 
-      redirect_uri, 
-      scope, 
-      state, 
-      code_challenge, 
-      code_challenge_method 
-    } = req.query;
+    const validateReq = validate(schemaAuthorize, req.query);
+    if (!validateReq.success) {
+      req.logger.addSummaryMetadata("error", validateReq.desc);
+      return res.status(400).json(createErrorResponse("invalid_request", "Missing or invalid parameters"));
+    }
 
     // Convert to camelCase for internal use
-    const responseType = response_type as string;
-    const clientId = client_id as string;
-    const redirectUri = redirect_uri as string;
-    const codeChallenge = code_challenge as string;
-    const codeChallengeMethod = code_challenge_method as string;
-
-    // Validate required parameters
-    if (!clientId || !redirectUri) {
-      return res.status(400).json(createErrorResponse("invalid_request", "Missing required parameters"));
-    }
+    const responseType = validateReq.data.response_type as string;
+    const clientId = validateReq.data.client_id;
+    const redirectUri = validateReq.data.redirect_uri as string;
+    const codeChallenge = validateReq.data.code_challenge as string;
+    const codeChallengeMethod = validateReq.data.code_challenge_method as string;
 
     // Validate response type
     if (responseType !== "code") {
@@ -58,7 +61,7 @@ export class AuthController {
     }
 
     // Validate client
-    const isValidClient = await this.authService.validateClient(clientId, redirectUri);
+    const isValidClient = await this.authService.validateClient(req, clientId, redirectUri);
     if (!isValidClient) {
       return res.status(400).json(createErrorResponse("invalid_client"));
     }
@@ -81,7 +84,7 @@ export class AuthController {
         </style>
       </head>
       <body>
-        <h2>Login to authorize ${escapeHtml(client_id)}</h2>
+        <h2>Login to authorize ${escapeHtml(clientId)}</h2>
         <form method="post" action="/login">
           <div class="form-group">
             <input name="username" placeholder="Username" required />
@@ -89,12 +92,12 @@ export class AuthController {
           <div class="form-group">
             <input name="password" type="password" placeholder="Password" required />
           </div>
-          <input type="hidden" name="client_id" value="${escapeHtml(client_id)}" />
-          <input type="hidden" name="redirect_uri" value="${escapeHtml(redirect_uri)}" />
-          <input type="hidden" name="state" value="${escapeHtml(state || "")}" />
-          <input type="hidden" name="scope" value="${escapeHtml(scope || "")}" />
-          <input type="hidden" name="code_challenge" value="${escapeHtml(code_challenge)}" />
-          <input type="hidden" name="code_challenge_method" value="${escapeHtml(code_challenge_method || "")}" />
+          <input type="hidden" name="client_id" value="${escapeHtml(clientId)}" />
+          <input type="hidden" name="redirect_uri" value="${escapeHtml(redirectUri)}" />
+          <input type="hidden" name="state" value="${escapeHtml(validateReq.data.state || "")}" />
+          <input type="hidden" name="scope" value="${escapeHtml(validateReq.data.scope || "")}" />
+          <input type="hidden" name="code_challenge" value="${escapeHtml(codeChallenge)}" />
+          <input type="hidden" name="code_challenge_method" value="${escapeHtml(codeChallengeMethod || "")}" />
           <button type="submit">Login & Authorize</button>
         </form>
         <div class="demo-info">
@@ -109,7 +112,7 @@ export class AuthController {
 
   public login = async (req: Request<{}, any, LoginBodyHttp>, res: Response): Promise<Response | void> => {
     req.useCase = "login";
-    
+
     const { username, password, client_id, redirect_uri, scope, state, code_challenge } = req.body;
 
     // Validate user credentials

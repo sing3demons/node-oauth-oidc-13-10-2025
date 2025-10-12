@@ -99,45 +99,46 @@ export class SummaryLogger {
     return this;
   }
 
-  /**
-   * Log success (appResultCode starting with 2xxx or 3xxx)
-   */
-  success(
-    appResultCode: string,
-    appResult?: string,
-    metadata?: Record<string, any>
-  ): this {
-    this.flush(appResultCode, appResult, undefined, metadata);
+  update(key: string, value: any): this {
+    this.addContext({ [key]: value });
     return this;
   }
 
   /**
+   * Log success (appResultCode starting with 2xxx or 3xxx)
+   */
+  // success(
+  //   appResultCode: string,
+  //   appResult?: string,
+  //   metadata?: Record<string, any>
+  // ): this {
+  //   this.flush( 200, metadata);
+  //   return this;
+  // }
+
+  /**
    * Log error (appResultCode starting with 4xxx or 5xxx)
    */
-  error(
-    appResultCode: string,
-    appResult?: string,
-    statusCode?: number,
-    metadata?: Record<string, any>
-  ): this {
-    const httpStatus = statusCode || this.inferStatusCode(appResultCode);
-    this.flush(appResultCode, appResult, httpStatus, metadata);
-    return this;
-  }
+  // error(
+  //   appResultCode: string,
+  //   appResult?: string,
+  //   statusCode?: number,
+  //   metadata?: Record<string, any>
+  // ): this {
+  //   const httpStatus = statusCode || this.inferStatusCode(appResultCode);
+  //   this.flush(httpStatus, metadata);
+  //   return this;
+  // }
 
   /**
    * Flush log with full control
    */
   flush(
-    appResultCode: string,
-    appResult?: string,
-    statusCode?: number,
-    metadata?: Record<string, any>
+    statusCode: number,
+    data?: any
   ): this {
-    const httpStatus = statusCode || this.inferStatusCode(appResultCode);
-    const level = httpStatus >= 400 ? 'error' : httpStatus >= 300 ? 'warn' : 'info';
-    
-    this.log(level, httpStatus, appResultCode, appResult, metadata);
+
+    this.log("info", statusCode, data);
     return this;
   }
 
@@ -147,9 +148,7 @@ export class SummaryLogger {
   private log(
     level: string,
     statusCode: number,
-    appResultCode: string,
-    appResult?: string,
-    metadata?: Record<string, any>
+    metadata?: any
   ): void {
     const duration = this.startTime ? Date.now() - this.startTime : undefined;
 
@@ -157,12 +156,10 @@ export class SummaryLogger {
     const logEntry: LogEntry = {
       timestamp: new Date().toISOString(),
       level: level.toUpperCase(),
+      duration: duration,
       ...this.context,
       statusCode,
-      appResultCode,
-      ...(appResult && { appResult }),
-      ...(duration !== undefined && { duration }),
-      ...(metadata && { metadata: JSON.stringify(metadata) }),
+      ...(metadata && { ...metadata }),
     };
 
     // Format and write to console

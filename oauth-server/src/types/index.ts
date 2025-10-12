@@ -1,5 +1,6 @@
 import { Request } from 'express';
 import { ObjectId } from 'mongodb';
+import { ILogger } from '../logger';
 
 declare global {
   namespace Express {
@@ -7,6 +8,7 @@ declare global {
       traceId?: string;
       sessionId?: string;
       useCase?: string;
+      logger: ILogger;
     }
   }
 }

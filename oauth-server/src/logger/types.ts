@@ -6,6 +6,8 @@ export interface LoggerContext {
   module?: string;         // Module name (e.g., "TokenHandler")
   component?: string;      // Component name (e.g., "MongoDBClient")
   traceId?: string;        // Request trace ID
+  requestId?: string;      // Unique request ID
+  transactionId?: string;  // Business transaction ID
   sessionId?: string;      // User session ID
 }
 
