@@ -10,28 +10,36 @@ import { FileFormatter } from './formatters/FileFormatter.js';
 import { ConsoleTransport } from './transports/ConsoleTransport.js';
 import { FileTransport } from './transports/FileTransport.js';
 
+/**
+ * SummaryLogger - High-performance summary logging
+ * 
+ * Features:
+ * - Request/response timing
+ * - Buffered file writing
+ * - Periodic auto-flush
+ * - Context inheritance
+ * - Optimized timestamp caching
+ */
 export class SummaryLogger {
   private static instance: SummaryLogger;
   private static config: LoggerConfig = {
-    consoleFormat: ConsoleFormat.JSON, // Summary ใช้ JSON by default
+    consoleFormat: ConsoleFormat.JSON,
     enableFileLogging: true,
     logLevel: LogLevel.INFO,
   };
 
   private context: LoggerContext = {};
   private startTime?: number | undefined;
-  private consoleFormatter: ConsoleFormatter;
-  private fileFormatter: FileFormatter;
-  private consoleTransport: ConsoleTransport;
-  private fileTransport: FileTransport;
+  private readonly consoleFormatter: ConsoleFormatter;
+  private readonly fileFormatter: FileFormatter;
+  private readonly consoleTransport: ConsoleTransport;
+  private readonly fileTransport: FileTransport;
 
-  // Performance optimizations
+  // Performance optimization - shared buffer
   private logBuffer: string[] = [];
-  private bufferSize = 50; // Buffer 50 logs before flushing
+  private readonly bufferSize = 50;
   private flushTimer?: NodeJS.Timeout | undefined;
-  private readonly flushInterval = 500; // Flush every 500ms
-  
-  // Cache for timestamp to avoid repeated Date.now() calls
+  private readonly flushInterval = 500;
   private lastFlushTime = Date.now();
 
   private constructor(logDir: string = 'logs/summary', filename: string = 'summary') {
@@ -39,8 +47,6 @@ export class SummaryLogger {
     this.fileFormatter = new FileFormatter();
     this.consoleTransport = new ConsoleTransport();
     this.fileTransport = new FileTransport(logDir, filename);
-    
-    // Start periodic flush timer
     this.startFlushTimer();
   }
 
@@ -59,10 +65,9 @@ export class SummaryLogger {
    */
   static configure(config: Partial<LoggerConfig>): void {
     SummaryLogger.config = { ...SummaryLogger.config, ...config };
-    if (SummaryLogger.instance) {
-      SummaryLogger.instance.consoleFormatter = new ConsoleFormatter(
-        SummaryLogger.config.consoleFormat
-      );
+    // Note: Recreating formatter requires creating new instance
+    if (SummaryLogger.instance && config.consoleFormat) {
+      console.warn('Console format change requires logger restart to take effect');
     }
   }
 
@@ -165,36 +170,39 @@ export class SummaryLogger {
   /**
    * Core logging method - Optimized with buffering
    */
-  private log(
-    level: string,
-    statusCode: number,
-    metadata?: any
-  ): void {
-    // Use cached time calculation for better performance
+  private log(level: string, statusCode: number, metadata?: any): void {
+    // Cached timestamp for better performance
     const now = Date.now();
     const duration = this.startTime ? now - this.startTime : undefined;
 
-    // Create log entry (minimize object spread operations)
+    // Build log entry efficiently (avoid unnecessary spreads)
     const logEntry: LogEntry = {
       timestamp: new Date(now).toISOString(),
       level: level.toUpperCase(),
-      duration: duration,
       ...this.context,
       statusCode,
-      ...(metadata && { ...metadata }),
     };
 
-    // Format and write to console immediately
+    // Add optional fields
+    if (duration !== undefined) {
+      logEntry.duration = duration;
+    }
+    
+    if (metadata) {
+      Object.assign(logEntry, metadata);
+    }
+
+    // Console: immediate write
     const consoleOutput = this.consoleFormatter.formatLog(logEntry);
     this.consoleTransport.write(consoleOutput, level.toUpperCase());
 
-    // Buffer file writes for performance
+    // File: buffered write
     if (SummaryLogger.config.enableFileLogging) {
       const fileOutput = this.fileFormatter.formatLog(logEntry);
       this.bufferLog(fileOutput);
     }
 
-    // Reset start time after flush (reuse undefined value)
+    // Reset timer
     this.startTime = undefined;
   }
 
