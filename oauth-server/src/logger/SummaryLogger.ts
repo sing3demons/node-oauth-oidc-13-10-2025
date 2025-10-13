@@ -25,11 +25,11 @@ export class SummaryLogger {
   private consoleTransport: ConsoleTransport;
   private fileTransport: FileTransport;
 
-  private constructor() {
+  private constructor(logDir: string = 'logs/summary', filename: string = 'summary') {
     this.consoleFormatter = new ConsoleFormatter(SummaryLogger.config.consoleFormat);
     this.fileFormatter = new FileFormatter();
     this.consoleTransport = new ConsoleTransport();
-    this.fileTransport = new FileTransport('logs', 'summary');
+    this.fileTransport = new FileTransport(logDir, filename);
   }
 
   /**

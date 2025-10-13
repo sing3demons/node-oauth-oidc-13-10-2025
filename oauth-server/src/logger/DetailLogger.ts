@@ -27,11 +27,11 @@ export class DetailLogger {
   private consoleTransport: ConsoleTransport;
   private fileTransport: FileTransport;
 
-  private constructor() {
+  private constructor(logDir: string = 'logs/details', filename: string = 'detail') {
     this.consoleFormatter = new ConsoleFormatter(DetailLogger.config.consoleFormat);
     this.fileFormatter = new FileFormatter();
     this.consoleTransport = new ConsoleTransport();
-    this.fileTransport = new FileTransport('logs', 'detail');
+    this.fileTransport = new FileTransport(logDir, filename);
   }
 
   /**
