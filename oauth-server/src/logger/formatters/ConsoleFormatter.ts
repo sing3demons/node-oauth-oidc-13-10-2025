@@ -53,7 +53,7 @@ export class ConsoleFormatter {
    */
   private formatWithColors(logEntry: LogEntry): string {
     const c = this.chalk;
-    const { timestamp, level, action, description, subAction, data, callStack, statusCode, appResultCode, appResult, duration } = logEntry;
+    const { timestamp, level, action, description, subAction, message, callStack, statusCode, appResultCode, appResult, duration } = logEntry;
 
     // Level colors
     const levelColors: Record<string, any> = {
@@ -92,9 +92,9 @@ export class ConsoleFormatter {
       }
     }
 
-    if (data) {
+    if (message) {
       output += c.gray('━'.repeat(70)) + '\n';
-      output += c.yellow('📦 Data:         ') + this.formatData(data) + '\n';
+      output += c.yellow('📦 Data:         ') + this.formatData(message) + '\n';
     }
 
     if (callStack && callStack.length > 0) {
@@ -114,7 +114,7 @@ export class ConsoleFormatter {
    * Pretty format without colors (plain text)
    */
   private formatPlainText(logEntry: LogEntry): string {
-    const { timestamp, level, action, description, subAction, data, callStack, statusCode, appResultCode, appResult, duration } = logEntry;
+    const { timestamp, level, action, description, subAction, message, callStack, statusCode, appResultCode, appResult, duration } = logEntry;
 
     let output = '\n';
     
@@ -143,9 +143,9 @@ export class ConsoleFormatter {
       }
     }
 
-    if (data) {
+    if (message) {
       output += '━'.repeat(70) + '\n';
-      output += `📦 Data:         ${this.formatData(data)}\n`;
+      output += `📦 Data:         ${this.formatData(message)}\n`;
     }
 
     if (callStack && callStack.length > 0) {

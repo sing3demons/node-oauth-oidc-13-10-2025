@@ -101,7 +101,7 @@ export interface LogEntry {
   action?: string;
   description?: string;
   subAction?: string;
-  data?: string;                // JSON string
+  message?: string;                // JSON string
   callStack?: string[];         // Only for ERROR level
   statusCode?: number;
   appResultCode?: string;

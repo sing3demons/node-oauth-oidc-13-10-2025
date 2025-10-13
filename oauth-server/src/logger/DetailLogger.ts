@@ -239,7 +239,7 @@ export class DetailLogger {
     }
     
     if (maskedData) {
-      logEntry.data = JSON.stringify(maskedData);
+      logEntry.message = JSON.stringify(maskedData);
     }
 
     // Add call stack for errors only
