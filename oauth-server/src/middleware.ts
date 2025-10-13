@@ -45,13 +45,14 @@ export const logMiddleware = (req: Request, res: CustomResponse, next: NextFunct
         if (finished) return; // Prevent duplicate execution
         finished = true;
 
-        const outbound = {
-            status: res.statusCode,
-            headers: res.getHeaders(),
-            body: res.__loggedBody,
-        };
 
-        if (req.logger) {
+        if (req.logger && req.logger.autoOutbound()) {
+
+            const outbound = {
+                status: res.statusCode,
+                headers: res.getHeaders(),
+                body: res.__loggedBody,
+            };
             try {
                 req.logger?.info(LoggerAction.OUTBOUND("Response sent"), outbound, req.logger.getOutboundMaskingOptions());
                 req.logger?.end(res.statusCode);

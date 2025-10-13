@@ -33,6 +33,7 @@ export interface ILogger {
   // withContext(context: LoggerContext): ILogger;
   // addContext(context: Partial<LoggerContext>): this;
   clearContext(): this;
+  autoOutbound(): boolean
 }
 
 /**
@@ -136,6 +137,11 @@ export class Logger implements ILogger {
   public getOutboundMaskingOptions(): MaskingOptionDto[] {
     return this.outboundMaskingOptions;
   }
+
+  private _autoOutbound = false
+  public autoOutbound(): boolean {
+    return this._autoOutbound
+  }
   init(cmd: string, inboundMaskingOptions?: MaskingOptionDto[], outboundMaskingOptions?: MaskingOptionDto[]): this {
     this.context.module = cmd;
     this.detail = DetailLogger.getInstance().withContext(this.context);
@@ -143,11 +149,10 @@ export class Logger implements ILogger {
     this.summary.start();
 
     this.detail.info(LoggerAction.INBOUND(`Start ${cmd}`), this.inbound, inboundMaskingOptions);
+    this._autoOutbound = true;
     if (outboundMaskingOptions) {
       this.outboundMaskingOptions.push(...outboundMaskingOptions);
     }
-    // clear inbound after logging
-    Object.keys(this.inbound).forEach(key => delete this.inbound[key]);
     return this;
   }
 
