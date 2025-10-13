@@ -1,6 +1,8 @@
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import dotenv from "dotenv";
+ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,7 +27,7 @@ export const config = {
 
   // Database Config
   database: {
-    mongodb: process.env.MONGO_URL || "mongodb://localhost:27017/oauth_demo",
+    mongodb: process.env.MONGO_URL || "",
   },
 
   // JWT Config

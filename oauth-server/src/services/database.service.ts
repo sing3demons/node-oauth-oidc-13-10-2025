@@ -19,6 +19,7 @@ export class DatabaseService {
 
   public async connect(): Promise<void> {
     try {
+      console.log('debug', `Connecting to MongoDB at ${config.database.mongodb}`);
       this.client = new MongoClient(config.database.mongodb, {
         maxPoolSize: 10,
         serverSelectionTimeoutMS: 5000,

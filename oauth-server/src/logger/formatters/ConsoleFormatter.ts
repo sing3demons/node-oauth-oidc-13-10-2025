@@ -1,4 +1,4 @@
-import { LogEntry, ConsoleFormat } from '../types';
+import { LogEntry, ConsoleFormat } from '../types.js';
 
 export class ConsoleFormatter {
   private format: ConsoleFormat;

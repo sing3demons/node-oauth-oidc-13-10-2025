@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { MaskingStrategy, MaskingOptionDto } from '../types';
+import { MaskingStrategy, MaskingOptionDto } from '../types.js';
 
 export class DataMasker {
   /**

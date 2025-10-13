@@ -1,3 +1,5 @@
+// Dummy export to force JS file emission for ES module imports
+export const __forceEmit = true;
 // Logger Context
 export interface LoggerContext {
   service?: string;        // Service name (from config)

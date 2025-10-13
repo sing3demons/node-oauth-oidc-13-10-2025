@@ -7,11 +7,13 @@ export class FileTransport {
   private currentDate: string;
   private fileHandle: fs.WriteStream | null = null;
 
-  constructor(logDir: string = 'logs', filename: string = 'application') {
+  constructor(enableFileLogging: boolean, logDir: string = 'logs', filename: string = 'application') {
     this.logDir = logDir;
     this.filename = filename;
     this.currentDate = this.getDateString();
-    this.ensureLogDir();
+    if (enableFileLogging) {
+      this.ensureLogDir();
+    }
   }
 
   /**
@@ -19,7 +21,7 @@ export class FileTransport {
    */
   write(formattedLog: string): void {
     const today = this.getDateString();
-    
+
     // Rotate file if date changed
     if (today !== this.currentDate) {
       this.closeFile();

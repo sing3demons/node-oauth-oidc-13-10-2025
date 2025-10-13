@@ -3,7 +3,7 @@ import cors from "cors";
 import { DatabaseService } from "./services/database.service.js";
 import { CryptoService } from "./services/crypto.service.js";
 import { logMiddleware, traceIdMiddleware } from "./middleware.js";
-import { routes } from "./routes/index.js";
+ import { routes } from "./routes/index.js";
 import { config } from "./config/index.js";
 
 export class OAuthServer {
@@ -68,12 +68,11 @@ export class OAuthServer {
   }
 
   public async start(): Promise<void> {
-    const { port, host } = config.server;
-    
+    const { port } = config.server;
     return new Promise((resolve) => {
-      this.app.listen(port, host, () => {
-        console.log(`✅ OAuth Server running on http://${host}:${port}`);
-        console.log(`📋 OpenID Configuration: http://${host}:${port}/.well-known/openid-configuration`);
+      this.app.listen(port, () => {
+        console.log(`✅ OAuth Server running on port ${port}`);
+        console.log(`📋 OpenID Configuration: /.well-known/openid-configuration`);
         resolve();
       });
     });

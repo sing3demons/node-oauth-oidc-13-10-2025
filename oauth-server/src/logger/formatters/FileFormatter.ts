@@ -1,4 +1,4 @@
-import { LogEntry } from '../types';
+import { LogEntry } from '../types.js';
 
 export class FileFormatter {
   /**

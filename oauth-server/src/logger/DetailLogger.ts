@@ -6,12 +6,12 @@ import {
   LogLevel,
   ConsoleFormat,
   LoggerConfig,
-} from './types';
-import { DataMasker } from './formatters/DataMasker';
-import { ConsoleFormatter } from './formatters/ConsoleFormatter';
-import { FileFormatter } from './formatters/FileFormatter';
-import { ConsoleTransport } from './transports/ConsoleTransport';
-import { FileTransport } from './transports/FileTransport';
+} from './types.js';
+import { DataMasker } from './formatters/DataMasker.js';
+import { ConsoleFormatter } from './formatters/ConsoleFormatter.js';
+import { FileFormatter } from './formatters/FileFormatter.js';
+import { ConsoleTransport } from './transports/ConsoleTransport.js';
+import { FileTransport } from './transports/FileTransport.js';
 
 /**
  * DetailLogger - High-performance logging with buffering
@@ -33,7 +33,7 @@ export class DetailLogger {
   private static instance: DetailLogger;
   private static config: LoggerConfig = {
     consoleFormat: ConsoleFormat.JSON,
-    enableFileLogging: true,
+    enableFileLogging: false,
     logLevel: LogLevel.INFO,
   };
 
@@ -54,7 +54,7 @@ export class DetailLogger {
     this.consoleFormatter = new ConsoleFormatter(DetailLogger.config.consoleFormat);
     this.fileFormatter = new FileFormatter();
     this.consoleTransport = new ConsoleTransport();
-    this.fileTransport = new FileTransport(logDir, filename);
+    this.fileTransport = new FileTransport(DetailLogger.config.enableFileLogging || false, logDir, filename);
     this.startFlushTimer();
   }
 
@@ -96,13 +96,13 @@ export class DetailLogger {
     newLogger.fileFormatter = this.fileFormatter;
     newLogger.consoleTransport = this.consoleTransport;
     newLogger.fileTransport = this.fileTransport;
-    
+
     // Share buffer and timer with parent instance
     newLogger.logBuffer = this.logBuffer;
     newLogger.bufferSize = this.bufferSize;
     newLogger.flushTimer = this.flushTimer;
     newLogger.flushInterval = this.flushInterval;
-    
+
     return newLogger;
   }
 
@@ -186,7 +186,7 @@ export class DetailLogger {
     }
 
     const logEntry = this.createLogEntry(level, actionData, data, maskingOptions, includeStack);
-    
+
     // Console: immediate write for visibility
     const consoleOutput = this.consoleFormatter.formatLog(logEntry);
     this.consoleTransport.write(consoleOutput, level);
@@ -223,7 +223,7 @@ export class DetailLogger {
   ): LogEntry {
     // Lazy masking - only if needed
     const maskedData = maskingOptions && data ? DataMasker.mask(data, maskingOptions) : data;
-    
+
     // Build log entry efficiently
     const logEntry: LogEntry = {
       timestamp: new Date().toISOString(),
@@ -237,7 +237,7 @@ export class DetailLogger {
     if (actionData.subAction) {
       logEntry.subAction = actionData.subAction;
     }
-    
+
     if (maskedData) {
       logEntry.message = JSON.stringify(maskedData);
     }
@@ -255,7 +255,7 @@ export class DetailLogger {
    */
   private bufferLog(log: string): void {
     this.logBuffer.push(log);
-    
+
     // Flush if buffer is full
     if (this.logBuffer.length >= this.bufferSize) {
       this.flushBuffer();
@@ -267,11 +267,11 @@ export class DetailLogger {
    */
   private flushBuffer(): void {
     if (this.logBuffer.length === 0) return;
-    
+
     // Batch write all buffered logs (each log already has \n from FileFormatter)
     const bufferedLogs = this.logBuffer.join('');
     this.fileTransport.write(bufferedLogs);
-    
+
     // Clear buffer
     this.logBuffer = [];
   }
@@ -283,7 +283,7 @@ export class DetailLogger {
     this.flushTimer = setInterval(() => {
       this.flushBuffer();
     }, this.flushInterval);
-    
+
     // Don't prevent Node.js from exiting
     this.flushTimer.unref();
   }

@@ -24,7 +24,7 @@ export class SummaryLogger {
   private static instance: SummaryLogger;
   private static config: LoggerConfig = {
     consoleFormat: ConsoleFormat.JSON,
-    enableFileLogging: true,
+    enableFileLogging: false,
     logLevel: LogLevel.INFO,
   };
 
@@ -46,7 +46,7 @@ export class SummaryLogger {
     this.consoleFormatter = new ConsoleFormatter(SummaryLogger.config.consoleFormat);
     this.fileFormatter = new FileFormatter();
     this.consoleTransport = new ConsoleTransport();
-    this.fileTransport = new FileTransport(logDir, filename);
+    this.fileTransport = new FileTransport(SummaryLogger.config.enableFileLogging || false, logDir, filename);
     this.startFlushTimer();
   }
 
@@ -89,14 +89,14 @@ export class SummaryLogger {
     newLogger.fileFormatter = this.fileFormatter;
     newLogger.consoleTransport = this.consoleTransport;
     newLogger.fileTransport = this.fileTransport;
-    
+
     // Share buffer and timer with parent instance
     newLogger.logBuffer = this.logBuffer;
     newLogger.bufferSize = this.bufferSize;
     newLogger.flushTimer = this.flushTimer;
     newLogger.flushInterval = this.flushInterval;
     newLogger.lastFlushTime = this.lastFlushTime;
-    
+
     return newLogger;
   }
 
@@ -187,7 +187,7 @@ export class SummaryLogger {
     if (duration !== undefined) {
       logEntry.duration = duration;
     }
-    
+
     if (metadata) {
       Object.assign(logEntry, metadata);
     }
@@ -211,7 +211,7 @@ export class SummaryLogger {
    */
   private bufferLog(log: string): void {
     this.logBuffer.push(log);
-    
+
     // Flush if buffer is full
     if (this.logBuffer.length >= this.bufferSize) {
       this.flushBuffer();
@@ -223,11 +223,11 @@ export class SummaryLogger {
    */
   private flushBuffer(): void {
     if (this.logBuffer.length === 0) return;
-    
+
     // Batch write all buffered logs (each log already has \n from FileFormatter)
     const bufferedLogs = this.logBuffer.join('');
     this.fileTransport.write(bufferedLogs);
-    
+
     // Clear buffer and update flush time
     this.logBuffer = [];
     this.lastFlushTime = Date.now();
@@ -240,7 +240,7 @@ export class SummaryLogger {
     this.flushTimer = setInterval(() => {
       this.flushBuffer();
     }, this.flushInterval);
-    
+
     // Don't prevent Node.js from exiting
     this.flushTimer.unref();
   }
