@@ -10,7 +10,7 @@ export class DiscoveryController {
   }
 
   public getOpenIdConfiguration = (req: Request, res: Response): void => {
-    req.useCase = "discovery";
+    req.logger.init("discovery");
     
     const configuration = {
       issuer: config.server.issuer,

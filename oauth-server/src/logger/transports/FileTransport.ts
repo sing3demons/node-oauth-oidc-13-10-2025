@@ -27,8 +27,9 @@ export class FileTransport {
     }
 
     // Get or create file stream
+    // formattedLog already has \n from FileFormatter
     const stream = this.getFileStream();
-    stream.write(formattedLog + '\n');
+    stream.write(formattedLog);
   }
 
   /**

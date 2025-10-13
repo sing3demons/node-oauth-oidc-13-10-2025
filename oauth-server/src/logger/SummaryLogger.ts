@@ -19,17 +19,29 @@ export class SummaryLogger {
   };
 
   private context: LoggerContext = {};
-  private startTime?: number;
+  private startTime?: number | undefined;
   private consoleFormatter: ConsoleFormatter;
   private fileFormatter: FileFormatter;
   private consoleTransport: ConsoleTransport;
   private fileTransport: FileTransport;
+
+  // Performance optimizations
+  private logBuffer: string[] = [];
+  private bufferSize = 50; // Buffer 50 logs before flushing
+  private flushTimer?: NodeJS.Timeout | undefined;
+  private readonly flushInterval = 500; // Flush every 500ms
+  
+  // Cache for timestamp to avoid repeated Date.now() calls
+  private lastFlushTime = Date.now();
 
   private constructor(logDir: string = 'logs/summary', filename: string = 'summary') {
     this.consoleFormatter = new ConsoleFormatter(SummaryLogger.config.consoleFormat);
     this.fileFormatter = new FileFormatter();
     this.consoleTransport = new ConsoleTransport();
     this.fileTransport = new FileTransport(logDir, filename);
+    
+    // Start periodic flush timer
+    this.startFlushTimer();
   }
 
   /**
@@ -72,6 +84,14 @@ export class SummaryLogger {
     newLogger.fileFormatter = this.fileFormatter;
     newLogger.consoleTransport = this.consoleTransport;
     newLogger.fileTransport = this.fileTransport;
+    
+    // Share buffer and timer with parent instance
+    newLogger.logBuffer = this.logBuffer;
+    newLogger.bufferSize = this.bufferSize;
+    newLogger.flushTimer = this.flushTimer;
+    newLogger.flushInterval = this.flushInterval;
+    newLogger.lastFlushTime = this.lastFlushTime;
+    
     return newLogger;
   }
 
@@ -143,18 +163,20 @@ export class SummaryLogger {
   }
 
   /**
-   * Core logging method
+   * Core logging method - Optimized with buffering
    */
   private log(
     level: string,
     statusCode: number,
     metadata?: any
   ): void {
-    const duration = this.startTime ? Date.now() - this.startTime : undefined;
+    // Use cached time calculation for better performance
+    const now = Date.now();
+    const duration = this.startTime ? now - this.startTime : undefined;
 
-    // Create log entry
+    // Create log entry (minimize object spread operations)
     const logEntry: LogEntry = {
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(now).toISOString(),
       level: level.toUpperCase(),
       duration: duration,
       ...this.context,
@@ -162,18 +184,68 @@ export class SummaryLogger {
       ...(metadata && { ...metadata }),
     };
 
-    // Format and write to console
+    // Format and write to console immediately
     const consoleOutput = this.consoleFormatter.formatLog(logEntry);
     this.consoleTransport.write(consoleOutput, level.toUpperCase());
 
-    // Write to file if enabled
+    // Buffer file writes for performance
     if (SummaryLogger.config.enableFileLogging) {
       const fileOutput = this.fileFormatter.formatLog(logEntry);
-      this.fileTransport.write(fileOutput);
+      this.bufferLog(fileOutput);
     }
 
-    // Reset start time after flush
-    this.startTime = undefined as any;
+    // Reset start time after flush (reuse undefined value)
+    this.startTime = undefined;
+  }
+
+  /**
+   * Buffer log for batch file writing
+   */
+  private bufferLog(log: string): void {
+    this.logBuffer.push(log);
+    
+    // Flush if buffer is full
+    if (this.logBuffer.length >= this.bufferSize) {
+      this.flushBuffer();
+    }
+  }
+
+  /**
+   * Flush buffered logs to file
+   */
+  private flushBuffer(): void {
+    if (this.logBuffer.length === 0) return;
+    
+    // Batch write all buffered logs (each log already has \n from FileFormatter)
+    const bufferedLogs = this.logBuffer.join('');
+    this.fileTransport.write(bufferedLogs);
+    
+    // Clear buffer and update flush time
+    this.logBuffer = [];
+    this.lastFlushTime = Date.now();
+  }
+
+  /**
+   * Start periodic flush timer
+   */
+  private startFlushTimer(): void {
+    this.flushTimer = setInterval(() => {
+      this.flushBuffer();
+    }, this.flushInterval);
+    
+    // Don't prevent Node.js from exiting
+    this.flushTimer.unref();
+  }
+
+  /**
+   * Stop flush timer and flush remaining logs
+   */
+  shutdown(): void {
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = undefined;
+    }
+    this.flushBuffer();
   }
 
   /**
