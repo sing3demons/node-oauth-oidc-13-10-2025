@@ -1,0 +1,53 @@
+version: '3.8'
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.13
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+    ports:
+      - 9200:9200
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.17.13
+    container_name: filebeat
+    user: root
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.13
+    container_name: kibana
+    ports:
+      - 5601:5601
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+
+  fluentd:
+    image: fluent/fluentd:v1.16-1
+    container_name: fluentd
+    platform: linux/amd64
+    ports:
+      - 24224:24224
+      - 24224:24224/udp
+    volumes:
+      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf
+    environment:
+      - FLUENTD_CONF=fluent.conf
+    depends_on:
+      - elasticsearch
+    command: >
+      /bin/sh -c "gem install fluent-plugin-elasticsearch -v 4.0.5 --user-install && exec fluentd -c /fluentd/etc/fluent.conf"
+volumes:
+  esdata:
