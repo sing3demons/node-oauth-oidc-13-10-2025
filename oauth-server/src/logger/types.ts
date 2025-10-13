@@ -93,6 +93,7 @@ export interface SummaryLogData {
 export interface LogEntry {
   timestamp: string;            // ISO 8601 timestamp
   level: string;                // "INFO", "WARN", "ERROR", "DEBUG"
+  type?: string;               // "summary" or "detail"
   service?: string;
   version?: string;
   environment?: string;

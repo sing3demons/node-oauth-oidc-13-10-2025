@@ -228,6 +228,7 @@ export class DetailLogger {
     const logEntry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
+      type: 'detail',
       ...this.context,
       action: actionData.action,
       description: actionData.description,

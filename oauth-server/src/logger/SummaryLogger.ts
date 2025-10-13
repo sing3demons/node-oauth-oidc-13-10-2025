@@ -178,6 +178,7 @@ export class SummaryLogger {
     // Build log entry efficiently (avoid unnecessary spreads)
     const logEntry: LogEntry = {
       timestamp: new Date(now).toISOString(),
+      type: 'summary',
       level: level.toUpperCase(),
       ...this.context,
       statusCode,
