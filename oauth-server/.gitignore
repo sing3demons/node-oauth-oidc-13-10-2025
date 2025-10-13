@@ -15,6 +15,11 @@ build/
 .env.test.local
 .env.production.local
 
+# Keys and key dumps
+keys/
+*.pem
+*.pem.b64
+
 # Runtime data
 pids
 *.pid
